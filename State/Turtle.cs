@@ -1,5 +1,6 @@
-﻿using System.Numerics;
-using TerrariumManager.Utilities;
+﻿using Botany.Abstractions;
+using Botany.Utilities;
+using System.Numerics;
 
 namespace Botany.State;
 
@@ -27,7 +28,7 @@ internal class Turtle(float step, float turn)
 
             if (c == 'F')
             {
-                var direction = MathX.GetDirection(Angle);
+                var direction = Geometry.GetDirection(Angle);
                 var destination = Position + direction * (Step + r);
 
                 yield return new(Position, destination);

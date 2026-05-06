@@ -1,4 +1,4 @@
-﻿namespace Botany.Abstractions;
+﻿namespace Botany.Interfaces;
 
 internal interface IUpdateable
 {
