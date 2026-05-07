@@ -22,6 +22,50 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
         _sections.Add(trimmedKey, trimmedSection);
     }
 
+    public T GetRequiredValue<T>(string key)
+    {
+        string trimmed = key.Trim();
+
+        if (TryGetValue(trimmed, out object? raw))
+        {
+            if (raw is T v)
+            {
+                return v;
+            }
+            else if (raw is not null)
+            {
+                throw new InvalidOperationException($"Required value '{trimmed}' was an invalid type: '{raw.GetType()}'");
+            }
+            else throw new InvalidOperationException($"Required value was null: '{trimmed}'");
+        }
+        else throw new KeyNotFoundException($"Required value not found: '{trimmed}'");
+    }
+
+    public T GetValueOrDefault<T>(string key, T defaultValue)
+    {
+        if (TryGetValue<T>(key, out var value))
+        {
+            return value ?? defaultValue;
+        }
+        else return defaultValue;
+    }
+
+    public bool TryGetValue<T>(string key, out T? value)
+    {
+        if (TryGetValue(key, out object? raw))
+        {
+            if (raw is T v)
+            {
+                value = v;
+                return true;
+            }
+            else value = default;
+        }
+        else value = default;
+
+        return false;
+    }
+
     public string Serialize()
     {
         var builder = new StringBuilder();
@@ -52,7 +96,7 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
 
     private string GetSection(KeyValuePair<string, object?> entry)
     {
-        if (_sections.TryGetValue(entry.Key, out var section))
+        if (_sections.TryGetValue(entry.Key, out string? section))
         {
             return section;
         }

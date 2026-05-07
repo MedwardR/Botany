@@ -4,7 +4,7 @@ using System.Numerics;
 
 namespace Botany.State;
 
-internal class Turtle(float step, float turn)
+internal class Turtle(float step, float turn, Random? random = null)
 {
     public Vector2 Position { get; private set; } = Vector2.Zero;
     public float Angle { get; set; } = -90f;
@@ -13,6 +13,7 @@ internal class Turtle(float step, float turn)
     public float Entropy { get; set; } = 0f;
 
     private readonly Stack<(Vector2 Position, float Angle)> _stack = [];
+    private readonly Random _random = random ?? Random.Shared;
 
     public IEnumerable<Line> Run(string commands)
     {
@@ -22,7 +23,7 @@ internal class Turtle(float step, float turn)
 
             if (Entropy > 0f)
             {
-                r = (Random.Shared.NextSingle() * 2f - 1f) * Entropy;
+                r = (_random.NextSingle() * 2f - 1f) * Entropy;
             }
             else r = 1f;
 

@@ -1,12 +1,19 @@
-﻿using Botany.Abstractions;
+﻿using System.Numerics;
+using Botany.Abstractions;
 using Botany.Interfaces;
 
 namespace Botany.State;
 
-internal class Plant : IUpdateable, ISerializable<Plant>
+internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
 {
     private const float COOLDOWN_SECONDS = 86400f; // 24 hours
     private const float MAX_VARIATION = 7200f; // 2 hours
+
+    public Vector2 Position { get; set; }
+    public float Speed { get; set; }
+
+    public IReadOnlyList<Line> Lines => _lines;
+    public int Length => _length;
 
     private readonly Seed _seed;
     private readonly Random _random;
@@ -17,23 +24,20 @@ internal class Plant : IUpdateable, ISerializable<Plant>
     private float _cooldown;
     private int _length;
 
-    public IEnumerable<Line> Lines => _lines.Take(_length);
-    public float Speed { get; set; }
-
     public Plant(Seed seed)
     {
         _seed = seed;
-        _random = new();
+        _random = new(seed.Random);
 
         _lsys = new(seed.Axiom, seed.Rules);
-        _turtle = new(seed.Step, seed.Turn)
+        _turtle = new(seed.Step, seed.Turn, _random)
         {
-            Entropy = 2f,
+            Entropy = seed.Entropy,
         };
         string commands = _lsys.Expand(seed.Iterations);
 
         _lines = [.. _turtle.Run(commands)];
-        _cooldown = 0;
+        _cooldown = 0f;
         _length = 0;
 
         Speed = 1f;
@@ -50,7 +54,7 @@ internal class Plant : IUpdateable, ISerializable<Plant>
             float period = COOLDOWN_SECONDS;
             float entropy = (_random.NextSingle() * 2f - 1f) * MAX_VARIATION;
 
-            _cooldown = period + entropy;
+            _cooldown += period + entropy;
         }
     }
 
@@ -68,9 +72,11 @@ internal class Plant : IUpdateable, ISerializable<Plant>
         {
             { "seed", "axiom", _seed.Axiom },
             { "seed", "rules", _seed.Rules },
+            { "seed", "iterations", _seed.Iterations },
             { "seed", "step", _seed.Step },
             { "seed", "turn", _seed.Turn },
-            { "seed", "iterations", _seed.Iterations },
+            { "seed", "entropy", _seed.Entropy },
+            { "seed", "random", _seed.Random },
 
             { "state", "cooldown", _cooldown },
             { "state", "length", _length },
@@ -84,59 +90,30 @@ internal class Plant : IUpdateable, ISerializable<Plant>
 
         var seed = new Seed
         {
-            Axiom = GetRequiredValue<string>(deserialized, "axiom"),
-            Rules = GetRequiredValue<IDictionary<char, string>>(deserialized, "rules"),
-            Step = GetRequiredValue<float>(deserialized, "step"),
-            Turn = GetRequiredValue<float>(deserialized, "turn"),
-            Iterations = GetRequiredValue<int>(deserialized, "iterations"),
+            Axiom = deserialized.GetRequiredValue<string>("axiom"),
+            Rules = deserialized.GetRequiredValue<IDictionary<char, string>>("rules"),
+            Iterations = deserialized.GetRequiredValue<int>("iterations"),
+            Step = deserialized.GetRequiredValue<float>("step"),
+            Turn = deserialized.GetRequiredValue<float>("turn"),
         };
-        var plant = new Plant(seed)
+        if (deserialized.TryGetValue("entropy", out float entropy))
         {
-            _cooldown = GetValueOrDefault(deserialized, "cooldown", 0f),
-            _length = GetValueOrDefault(deserialized, "length", 0),
-        };
+            seed.Entropy = entropy;
+        }
+        if (deserialized.TryGetValue("random", out int random))
+        {
+            seed.Random = random;
+        }
+        var plant = new Plant(seed);
+
+        if (deserialized.TryGetValue("cooldown", out float cooldown))
+        {
+            plant._cooldown = cooldown;
+        }
+        if (deserialized.TryGetValue("length", out int length))
+        {
+           plant._length = length;
+        }
         return plant;
-    }
-
-    private static T GetRequiredValue<T>(Toml toml, string key)
-    {
-        T? value;
-
-        if (toml.TryGetValue(key, out var raw))
-        {
-            if (raw is T v)
-            {
-                value = v;
-            }
-            else value = default;
-        }
-        else value = default;
-
-        if (value is null)
-        {
-            throw new InvalidOperationException($"Required value not provided: '{key}'");
-        }
-        else return value;
-    }
-
-    private static T GetValueOrDefault<T>(Toml toml, string key, T defaultValue)
-    {
-        T? value;
-
-        if (toml.TryGetValue(key, out var raw))
-        {
-            if (raw is T v)
-            {
-                value = v;
-            }
-            else value = default;
-        }
-        else value = default;
-
-        if (value is null)
-        {
-            return defaultValue;
-        }
-        else return value;
     }
 }
