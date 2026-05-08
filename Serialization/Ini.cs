@@ -1,17 +1,17 @@
-﻿using Botany.Interfaces;
-using System.IO;
+﻿using System.IO;
 using System.Text;
+using DataGen2.Interfaces;
 
-namespace Botany.Abstractions;
+namespace DataGen2.Collections;
 
-internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
+internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
 {
     private const string DEFAULT_SECTION = "miscellaneous";
-    private const string NULL_VALUE = "null";
+    private const string NULL_KEYWORD = "null";
 
     private readonly Dictionary<string, string> _sections = [];
 
-    public Toml() : base(StringComparer.OrdinalIgnoreCase) { }
+    public Ini() : base(StringComparer.OrdinalIgnoreCase) { }
 
     public void Add(string section, string key, object? value)
     {
@@ -72,21 +72,21 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
         var groups = this.GroupBy(GetSection);
         var ordered = groups.OrderBy(IsDefaultSection);
 
-        foreach (var g in ordered)
+        foreach (var section in ordered)
         {
             if (builder.Length > 0)
             {
                 builder.AppendLine();
             }
-            builder.AppendLine($"[{g}]");
+            builder.AppendLine($"[{section}]");
 
-            foreach ((string key, var value) in g)
+            foreach ((string key, object? value) in section)
             {
                 if (value is not null)
                 {
                     builder.AppendLine($"{key} = {value}");
                 }
-                else builder.AppendLine($"{key} = {NULL_VALUE}");
+                else builder.AppendLine($"{key} = {NULL_KEYWORD}");
             }
         }
         builder.AppendLine();
@@ -94,9 +94,9 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
         return builder.ToString();
     }
 
-    public static Toml Deserialize(string s)
+    public static Ini Deserialize(string s)
     {
-        var toml = new Toml();
+        var ini = new Ini();
 
         using var reader = new StringReader(s);
         string section = DEFAULT_SECTION;
@@ -110,11 +110,17 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
 
             if (semicolon > -1 && pound > -1)
             {
-                comment = int.Min(semicolon, pound);
+                comment = Math.Min(semicolon, pound);
             }
-            else comment = int.Max(semicolon, pound);
+            else comment = Math.Max(semicolon, pound);
 
-            string normalized = line[..comment].Trim();
+            string normalized;
+
+            if (comment > -1)
+            {
+                normalized = line[..comment].Trim();
+            }
+            else normalized = line.Trim();
 
             if (normalized.StartsWith('['))
             {
@@ -124,21 +130,29 @@ internal class Toml : OrderedDictionary<string, object?>, ISerializable<Toml>
             {
                 int separator = normalized.IndexOf('=');
 
-                string key = normalized[..separator].Trim();
-                string value = normalized[(separator + 1)..].Trim();
-
-                bool valueIsNull =
-                    value.Equals(NULL_VALUE, StringComparison.OrdinalIgnoreCase) ||
-                    string.IsNullOrWhiteSpace(value);
-
-                if (valueIsNull)
+                if (separator > -1)
                 {
-                    toml.Add(section, key, null);
+                    string key = normalized[..separator].Trim();
+                    string raw = normalized[(separator + 1)..].Trim().Trim('"');
+
+                    bool valueIsNull =
+                        raw.Equals(NULL_KEYWORD, StringComparison.OrdinalIgnoreCase) ||
+                        string.IsNullOrWhiteSpace(raw);
+
+                    if (valueIsNull)
+                    {
+                        ini.Add(section, key, null);
+                    }
+                    else if (int.TryParse(raw, out int i))
+                    {
+                        ini.Add(section, key, i);
+                    }
+                    else ini.Add(section, key, raw);
                 }
-                else toml.Add(section, key, value);
+                else ini.Add(section, normalized, null);
             }
         }
-        return toml;
+        return ini;
     }
 
     private string GetSection(KeyValuePair<string, object?> entry)
