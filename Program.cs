@@ -1,4 +1,4 @@
-﻿using Botany.State;
+﻿using Botany.Core;
 using System.IO;
 
 namespace Botany;
@@ -19,7 +19,8 @@ public static class Program
                     string ini = File.ReadAllText(path);
                     var plant = Plant.Deserialize(ini);
 
-                    plant.Speed = 86400f * 200;
+                    plant.Transform = new(0, 0, -90f);
+                    plant.Speed = 86400f * 400;
 
                     var window = new MainWindow(plant);
                     window.Show();

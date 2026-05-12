@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace Botany.State;
+namespace Botany.Core;
 
 internal class LSystem(string axiom, IDictionary<char, string> rules)
 {

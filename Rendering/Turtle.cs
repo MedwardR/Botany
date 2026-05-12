@@ -1,8 +1,9 @@
-﻿using Botany.Utilities;
+﻿using Botany.Rendering;
+using Botany.Utilities;
 using System.Collections;
 using System.Numerics;
 
-namespace Botany.State;
+namespace Botany.Rendering;
 
 internal class Turtle(string instructions, Random? random = null) : IEnumerator
 {
@@ -40,7 +41,7 @@ internal class Turtle(string instructions, Random? random = null) : IEnumerator
 
             if (c == 'F')
             {
-                var direction = MathX.GetDirection(Angle);
+                var direction = Trigonometry.GetDirection(Angle);
                 var destination = Position + direction * (Step + r);
 
                 var segment = new Segment(Position, destination, Depth);

@@ -2,7 +2,7 @@
 
 namespace Botany.Utilities;
 
-internal static class MathX
+internal static class Trigonometry
 {
     public static Vector2 GetDirection(float angle)
     {
@@ -12,5 +12,5 @@ internal static class MathX
         return new(x, y);
     }
 
-    public static float DegToRad(float angle) => angle * (MathF.PI / 180f);
+    public static float DegToRad(float degrees) => degrees * (MathF.PI / 180f);
 }

@@ -1,4 +1,4 @@
-﻿namespace Botany.State;
+﻿namespace Botany.Core;
 
 public record Seed
 {

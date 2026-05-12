@@ -1,7 +1,8 @@
-﻿using Botany.Interfaces;
-using Botany.State;
-using Botany.Utilities;
+﻿using Botany.Core;
+using Botany.Interfaces;
+using Botany.Rendering;
 using System.Diagnostics;
+using System.Numerics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -11,11 +12,13 @@ namespace Botany;
 
 public partial class MainWindow : Window
 {
+    private readonly Plant _plant;
+    private readonly List<Segment> _segments;
+
     private readonly Stopwatch _sw;
     private readonly List<IUpdateable> _updateables;
 
-    private readonly Plant _plant;
-    private readonly List<Segment> _segments;
+    private readonly Camera _camera;
 
     private int _index;
 
@@ -32,10 +35,7 @@ public partial class MainWindow : Window
         _sw = Stopwatch.StartNew();
         _updateables = [_plant];
 
-        float x = (float)Width / 2f;
-        float y = (float)Height / 2f;
-        _plant.Position = new(x, y);
-        _plant.Rotation = -90f;
+        _camera = new(0, 0);
 
         CompositionTarget.Rendering += OnRendering;
     }
@@ -54,31 +54,26 @@ public partial class MainWindow : Window
 
     private void UpdateCanvas()
     {
-        float radians = MathX.DegToRad(_plant.Rotation);
-
-        float cos = MathF.Cos(radians);
-        float sin = MathF.Sin(radians);
+        var model = _plant.Transform.ToMatrix();
+        var view = _camera.ToMatrix(Width, Height);
+        var matrix = model * view;
 
         for (; _index < _plant.Length; _index++)
         {
             var segment = _segments[_index];
 
-            float sx = segment.Start.X * cos - segment.Start.Y * sin;
-            float sy = segment.Start.X * sin + segment.Start.Y * cos;
-
-            float ex = segment.End.X * cos - segment.End.Y * sin;
-            float ey = segment.End.X * sin + segment.End.Y * cos;
+            var start = Vector2.Transform(segment.Start, matrix);
+            var end = Vector2.Transform(segment.End, matrix);
 
             var line = new Line
             {
-                X1 = _plant.Position.X - sx,
-                Y1 = _plant.Position.Y + sy,
-                X2 = _plant.Position.X - ex,
-                Y2 = _plant.Position.Y + ey,
+                X1 = start.X,
+                Y1 = start.Y,
+                X2 = end.X,
+                Y2 = end.Y,
                 Stroke = Brushes.ForestGreen,
                 StrokeThickness = 1,
             };
-
             Canvas.Children.Add(line);
         }
     }

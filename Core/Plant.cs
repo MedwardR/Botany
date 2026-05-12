@@ -1,17 +1,17 @@
-﻿using System.Collections;
-using System.Numerics;
-using Botany.Interfaces;
+﻿using Botany.Interfaces;
+using Botany.Rendering;
 using Botany.Serialization;
+using System.Collections;
 
-namespace Botany.State;
+namespace Botany.Core;
 
-public class Plant : IPositionable, IRotatable, IUpdateable, ISerializable<Plant>
+public class Plant : ITransformable, IUpdateable, ISerializable<Plant>
 {
     private const float COOLDOWN_SECONDS = 86400f; // 24 hours
     private const float MAX_VARIATION = 7200f; // 2 hours
 
-    public Vector2 Position { get; set; }
-    public float Rotation { get; set; }
+    public Transform Transform { get; set; }
+
     public float Speed { get; set; }
 
     public IReadOnlyList<Segment> Segments => _segments;
@@ -117,7 +117,7 @@ public class Plant : IPositionable, IRotatable, IUpdateable, ISerializable<Plant
         }
         if (deserialized.TryGetValue("length", out int length))
         {
-           plant._length = length;
+            plant._length = length;
         }
         return plant;
     }
