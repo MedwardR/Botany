@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Botany": {
+      "commandName": "Project",
+      "commandLineArgs": "\"C:\\Users\\miles\\Downloads\\plant.ini\""
+    }
+  }
+}

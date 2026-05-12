@@ -1,8 +1,11 @@
-﻿using System.IO;
+﻿using Botany.Interfaces;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Numerics;
 using System.Text;
-using DataGen2.Interfaces;
 
-namespace DataGen2.Collections;
+namespace Botany.Serialization;
 
 internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
 {
@@ -26,15 +29,23 @@ internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
     {
         string trimmed = key.Trim();
 
-        if (TryGetValue(trimmed, out object? raw))
+        if (base.TryGetValue(trimmed, out object? raw))
         {
-            if (raw is T v)
+            if (raw is not null)
             {
-                return v;
-            }
-            else if (raw is not null)
-            {
-                throw new InvalidOperationException($"Required value '{trimmed}' was an invalid type: '{raw.GetType()}'");
+                try
+                {
+                    if (raw is T value)
+                    {
+                        return value;
+                    }
+                    else return (T)Convert.ChangeType(raw, typeof(T));
+                }
+                catch (Exception ex)
+                {
+                    string message = $"Required value '{trimmed}' was an invalid type: '{raw.GetType()}'";
+                    throw new InvalidOperationException(message, ex);
+                }
             }
             else throw new InvalidOperationException($"Required value was null: '{trimmed}'");
         }
@@ -50,9 +61,9 @@ internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
         else return defaultValue;
     }
 
-    public bool TryGetValue<T>(string key, out T? value)
+    public bool TryGetValue<T>(string key, [MaybeNullWhen(false)] out T value)
     {
-        if (TryGetValue(key, out object? raw))
+        if (base.TryGetValue(key, out object? raw))
         {
             if (raw is T v)
             {
@@ -122,7 +133,7 @@ internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
             }
             else normalized = line.Trim();
 
-            if (normalized.StartsWith('['))
+            if (normalized.StartsWith('[') && normalized.EndsWith(']'))
             {
                 section = normalized.TrimStart('[').TrimEnd(']').Trim();
             }
@@ -133,26 +144,79 @@ internal class Ini : OrderedDictionary<string, object?>, ISerializable<Ini>
                 if (separator > -1)
                 {
                     string key = normalized[..separator].Trim();
-                    string raw = normalized[(separator + 1)..].Trim().Trim('"');
+                    string raw = normalized[(separator + 1)..].Trim();
 
-                    bool valueIsNull =
-                        raw.Equals(NULL_KEYWORD, StringComparison.OrdinalIgnoreCase) ||
-                        string.IsNullOrWhiteSpace(raw);
+                    var value = Parse(raw);
 
-                    if (valueIsNull)
+                    if (ini.TryGetValue(key, out var existing))
                     {
-                        ini.Add(section, key, null);
+                        var entry = value as DictionaryEntry?;
+
+                        if (existing is IDictionary dict && entry is not null)
+                        {
+                            dict.Add(entry.Value.Key, entry.Value.Value);
+                        }
+                        else if (existing is ICollection<object?> list)
+                        {
+                            list.Add(value);
+                        }
+                        else if (entry is not null && existing is DictionaryEntry other)
+                        {
+                            ini[key] = new OrderedDictionary<object, object?>
+                            {
+                                { other.Key, other.Value },
+                                { entry.Value.Key, entry.Value.Value },
+                            };
+                        }
+                        else ini[key] = new List<object?> { existing, value };
                     }
-                    else if (int.TryParse(raw, out int i))
-                    {
-                        ini.Add(section, key, i);
-                    }
-                    else ini.Add(section, key, raw);
+                    else ini.Add(key, value);
                 }
                 else ini.Add(section, normalized, null);
             }
         }
         return ini;
+    }
+
+    private static object? Parse(string value)
+    {
+        string raw = value.Trim();
+
+        bool valueIsNull =
+            raw.Equals(NULL_KEYWORD, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(raw);
+
+        if (valueIsNull)
+        {
+            return null;
+        }
+        else if (raw.StartsWith('"') || raw.EndsWith('"'))
+        {
+            return raw.Trim('"');
+        }
+        else if (raw.StartsWith('[') && raw.EndsWith(']'))
+        {
+            string trimmed = raw.TrimStart('[').TrimEnd(']');
+            string[] parts = trimmed.Split(',', StringSplitOptions.TrimEntries);
+
+            var k = Parse(parts[0]);
+            var v = Parse(parts[1]);
+
+            return new DictionaryEntry(k!, v);
+        }
+        else if (int.TryParse(raw, out int i))
+        {
+            return i;
+        }
+        else if (decimal.TryParse(raw, out decimal m))
+        {
+            return m;
+        }
+        else if (DateTime.TryParse(raw, out var d))
+        {
+            return d;
+        }
+        else return raw;
     }
 
     private string GetSection(KeyValuePair<string, object?> entry)

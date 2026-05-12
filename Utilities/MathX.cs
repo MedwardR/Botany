@@ -2,7 +2,7 @@
 
 namespace Botany.Utilities;
 
-internal static class Geometry
+internal static class MathX
 {
     public static Vector2 GetDirection(float angle)
     {

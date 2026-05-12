@@ -1,25 +1,27 @@
-﻿using System.Numerics;
-using Botany.Abstractions;
+﻿using System.Collections;
+using System.Numerics;
 using Botany.Interfaces;
+using Botany.Serialization;
 
 namespace Botany.State;
 
-internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
+public class Plant : IPositionable, IRotatable, IUpdateable, ISerializable<Plant>
 {
     private const float COOLDOWN_SECONDS = 86400f; // 24 hours
     private const float MAX_VARIATION = 7200f; // 2 hours
 
     public Vector2 Position { get; set; }
+    public float Rotation { get; set; }
     public float Speed { get; set; }
 
-    public IReadOnlyList<Line> Lines => _lines;
+    public IReadOnlyList<Segment> Segments => _segments;
     public int Length => _length;
 
     private readonly Seed _seed;
     private readonly Random _random;
     private readonly LSystem _lsys;
     private readonly Turtle _turtle;
-    private readonly List<Line> _lines;
+    private readonly List<Segment> _segments;
 
     private float _cooldown;
     private int _length;
@@ -30,13 +32,16 @@ internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
         _random = new(seed.Random);
 
         _lsys = new(seed.Axiom, seed.Rules);
-        _turtle = new(seed.Step, seed.Turn, _random)
+        string instructions = _lsys.Expand(seed.Iterations);
+
+        _turtle = new(instructions, _random)
         {
+            Step = seed.Step,
+            Turn = seed.Turn,
             Entropy = seed.Entropy,
         };
-        string commands = _lsys.Expand(seed.Iterations);
+        _segments = [.. _turtle.Enumerate()];
 
-        _lines = [.. _turtle.Run(commands)];
         _cooldown = 0f;
         _length = 0;
 
@@ -60,7 +65,7 @@ internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
 
     public void Grow()
     {
-        if (_length < _lines.Count)
+        if (_length < _segments.Count)
         {
             _length++;
         }
@@ -68,7 +73,7 @@ internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
 
     public string Serialize()
     {
-        var toml = new Toml
+        var ini = new Ini
         {
             { "seed", "axiom", _seed.Axiom },
             { "seed", "rules", _seed.Rules },
@@ -81,17 +86,17 @@ internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
             { "state", "cooldown", _cooldown },
             { "state", "length", _length },
         };
-        return toml.Serialize();
+        return ini.Serialize();
     }
 
-    public static Plant Deserialize(string toml)
+    public static Plant Deserialize(string ini)
     {
-        var deserialized = Toml.Deserialize(toml);
+        var deserialized = Ini.Deserialize(ini);
 
         var seed = new Seed
         {
             Axiom = deserialized.GetRequiredValue<string>("axiom"),
-            Rules = deserialized.GetRequiredValue<IDictionary<char, string>>("rules"),
+            Rules = GetRules(deserialized),
             Iterations = deserialized.GetRequiredValue<int>("iterations"),
             Step = deserialized.GetRequiredValue<float>("step"),
             Turn = deserialized.GetRequiredValue<float>("turn"),
@@ -115,5 +120,27 @@ internal class Plant : IPositionable, IUpdateable, ISerializable<Plant>
            plant._length = length;
         }
         return plant;
+    }
+
+    private static Dictionary<char, string> GetRules(Ini ini)
+    {
+        var raw = ini.GetRequiredValue<IDictionary>("rules");
+        var rules = new Dictionary<char, string>();
+
+        foreach (DictionaryEntry entry in raw)
+        {
+            string? key = entry.Key.ToString();
+            string? value = entry.Value as string;
+
+            if (key is not null && value is not null)
+            {
+                if (key.Length == 1)
+                {
+                    char c = key[0];
+                    rules.Add(c, value);
+                }
+            }
+        }
+        return rules;
     }
 }
